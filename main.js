@@ -143,6 +143,23 @@ function createMenu() {
             ]
         },
         {
+            label: 'Productos',
+            submenu: [
+                {
+                    label: 'Gestionar Productos',
+                    click: () => {
+                        mainWindow.webContents.send('mostrar-productos');
+                    }
+                },
+                {
+                    label: 'Agregar Nuevo Producto',
+                    click: () => {
+                        mainWindow.webContents.send('nuevo-producto');
+                    }
+                }
+            ]
+        },
+        {
             label: 'Ayuda',
             submenu: [
                 {
@@ -308,6 +325,79 @@ ipcMain.on('exportar-excel', async (event, ventas) => {
     const filePath = path.join(app.getPath('desktop'), 'ventas.xlsx');
     await workbook.xlsx.writeFile(filePath);
     event.reply('excel-exportado', filePath);
+});
+
+// Agregar nuevo producto
+ipcMain.on('agregar-producto', (event, producto) => {
+    try {
+        const stmt = db.prepare(`
+            INSERT INTO productos (codigo, nombre, precio, cantidad, categoria, descripcion) 
+            VALUES (?, ?, ?, ?, ?, ?)
+        `);
+        
+        stmt.run([
+            producto.codigo,
+            producto.nombre,
+            producto.precio,
+            producto.cantidad || 0,
+            producto.categoria || '',
+            producto.descripcion || ''
+        ]);
+        
+        stmt.free();
+        
+        // Guardar la base de datos
+        saveDatabase();
+        
+        event.reply('producto-agregado', { success: true });
+    } catch (err) {
+        event.reply('error', err.message);
+    }
+});
+
+// Actualizar producto
+ipcMain.on('actualizar-producto', (event, producto) => {
+    try {
+        const stmt = db.prepare(`
+            UPDATE productos 
+            SET nombre = ?, precio = ?, cantidad = ?, categoria = ?, descripcion = ? 
+            WHERE codigo = ?
+        `);
+        
+        stmt.run([
+            producto.nombre,
+            producto.precio,
+            producto.cantidad || 0,
+            producto.categoria || '',
+            producto.descripcion || '',
+            producto.codigo
+        ]);
+        
+        stmt.free();
+        
+        // Guardar la base de datos
+        saveDatabase();
+        
+        event.reply('producto-actualizado', { success: true });
+    } catch (err) {
+        event.reply('error', err.message);
+    }
+});
+
+// Eliminar producto
+ipcMain.on('eliminar-producto', (event, codigo) => {
+    try {
+        const stmt = db.prepare('DELETE FROM productos WHERE codigo = ?');
+        stmt.run([codigo]);
+        stmt.free();
+        
+        // Guardar la base de datos
+        saveDatabase();
+        
+        event.reply('producto-eliminado', { success: true });
+    } catch (err) {
+        event.reply('error', err.message);
+    }
 });
 
 app.on('window-all-closed', () => {
