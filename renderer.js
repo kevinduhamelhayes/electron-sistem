@@ -154,8 +154,12 @@ function actualizarTablaProductos() {
 }
 
 // Buscar producto
+let timeoutBusqueda;
 buscarProductoInput.addEventListener('input', () => {
-    actualizarTablaProductos();
+    clearTimeout(timeoutBusqueda);
+    timeoutBusqueda = setTimeout(() => {
+        actualizarTablaProductos();
+    }, 300);
 });
 
 // Abrir modal para nuevo producto
@@ -233,58 +237,80 @@ ipcRenderer.on('producto-eliminado', () => {
     cargarProductos();
 });
 
-// Guardar producto con validaciones adicionales
+// Función mejorada para validar producto
+function validarProducto(producto) {
+    const errores = [];
+    
+    if (!producto.codigo || producto.codigo.length < 3) {
+        errores.push('El código debe tener al menos 3 caracteres');
+    }
+    
+    if (!producto.nombre || producto.nombre.length < 2) {
+        errores.push('El nombre debe tener al menos 2 caracteres');
+    }
+    
+    if (isNaN(producto.precio) || producto.precio <= 0) {
+        errores.push('El precio debe ser un número mayor que cero');
+    }
+    
+    if (isNaN(producto.cantidad) || producto.cantidad < 0) {
+        errores.push('La cantidad debe ser un número positivo');
+    }
+    
+    return errores;
+}
+
+// Función mejorada para mostrar errores
+function mostrarErrores(errores) {
+    const mensaje = errores.join('\n');
+    const modalError = document.createElement('div');
+    modalError.className = 'modal-container';
+    modalError.innerHTML = `
+        <div class="acerca-de-modal">
+            <h2>Error de Validación</h2>
+            <p style="color: #dc3545;">${mensaje}</p>
+            <button id="cerrar-error">Cerrar</button>
+        </div>
+    `;
+    
+    document.body.appendChild(modalError);
+    
+    document.getElementById('cerrar-error').addEventListener('click', () => {
+        document.body.removeChild(modalError);
+    });
+}
+
+// Mejorar el guardado de producto
 productoForm.addEventListener('submit', (e) => {
     e.preventDefault();
     
-    // Validar código
-    const codigo = productoCodigoInput.value.trim();
-    if (!codigo) {
-        alert('El código del producto es obligatorio.');
-        productoCodigoInput.focus();
-        return;
-    }
-    
-    // Validar nombre
-    const nombre = productoNombreInput.value.trim();
-    if (!nombre) {
-        alert('El nombre del producto es obligatorio.');
-        productoNombreInput.focus();
-        return;
-    }
-    
-    // Validar precio
-    const precio = parseFloat(productoPrecioInput.value);
-    if (isNaN(precio) || precio <= 0) {
-        alert('El precio debe ser un número mayor que cero.');
-        productoPrecioInput.focus();
-        return;
-    }
-    
-    // Validar que no exista otro producto con el mismo código (solo en modo nuevo producto)
-    if (!modoEdicion) {
-        const productoExistente = productosData.find(p => p.codigo === codigo);
-        if (productoExistente) {
-            alert(`Ya existe un producto con el código "${codigo}".`);
-            productoCodigoInput.focus();
-            return;
-        }
-    }
-    
     const producto = {
-        codigo: codigo,
-        nombre: nombre,
-        precio: precio,
+        codigo: productoCodigoInput.value.trim(),
+        nombre: productoNombreInput.value.trim(),
+        precio: parseFloat(productoPrecioInput.value),
         cantidad: parseInt(productoCantidadInput.value) || 0,
         categoria: productoCategoriaInput.value.trim(),
         descripcion: productoDescripcionInput.value.trim()
     };
     
+    const errores = validarProducto(producto);
+    
+    if (errores.length > 0) {
+        mostrarErrores(errores);
+        return;
+    }
+    
+    if (!modoEdicion) {
+        const productoExistente = productosData.find(p => p.codigo === producto.codigo);
+        if (productoExistente) {
+            mostrarErrores(['Ya existe un producto con este código']);
+            return;
+        }
+    }
+    
     if (modoEdicion) {
-        // Actualizar producto existente
         ipcRenderer.send('actualizar-producto', producto);
     } else {
-        // Agregar nuevo producto
         ipcRenderer.send('agregar-producto', producto);
     }
     
@@ -367,27 +393,29 @@ ventaForm.addEventListener('submit', (e) => {
     guardarVenta();
 });
 
-// Mejorar la función de guardar venta con validaciones
+// Mejorar la función de guardar venta
 function guardarVenta() {
     const codigo = codigoInput.value.trim();
     const producto = productoInput.value.trim();
     const precio = parseFloat(precioInput.value);
     const metodoPago = metodoPagoSelect.value;
     
+    const errores = [];
+    
     if (!codigo) {
-        alert('Por favor, ingrese un código de producto.');
-        codigoInput.focus();
-        return;
+        errores.push('Por favor, ingrese un código de producto');
     }
     
     if (!producto) {
-        alert('No se ha encontrado un producto con ese código.');
-        codigoInput.focus();
-        return;
+        errores.push('No se ha encontrado un producto con ese código');
     }
     
     if (isNaN(precio) || precio <= 0) {
-        alert('El precio debe ser un número mayor que cero.');
+        errores.push('El precio debe ser un número mayor que cero');
+    }
+    
+    if (errores.length > 0) {
+        mostrarErrores(errores);
         return;
     }
     
@@ -398,21 +426,25 @@ function guardarVenta() {
         fecha: new Date().toISOString()
     };
     
-    // Enviar al proceso principal
     ipcRenderer.send('guardar-venta', venta);
     
-    // Limpiar formulario
+    // Limpiar formulario y mostrar confirmación
     codigoInput.value = '';
     productoInput.value = '';
     precioInput.value = '';
     metodoPagoSelect.value = 'efectivo';
     codigoInput.focus();
+    
+    // Mostrar confirmación
+    const confirmacion = document.createElement('div');
+    confirmacion.className = 'confirmacion-venta';
+    confirmacion.textContent = 'Venta registrada correctamente';
+    document.body.appendChild(confirmacion);
+    
+    setTimeout(() => {
+        document.body.removeChild(confirmacion);
+    }, 2000);
 }
-
-// Recibir confirmación de venta guardada
-ipcRenderer.on('venta-guardada', () => {
-    cargarVentasRecientes();
-});
 
 // Cargar ventas recientes
 function cargarVentasRecientes() {
@@ -615,4 +647,26 @@ ipcRenderer.on('nuevo-producto', () => {
 document.addEventListener('DOMContentLoaded', () => {
     cargarProductos();
     cargarVentasRecientes();
-}); 
+});
+
+// Agregar estilos para la confirmación de venta
+const style = document.createElement('style');
+style.textContent = `
+    .confirmacion-venta {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        background-color: #28a745;
+        color: white;
+        padding: 15px 25px;
+        border-radius: 4px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        animation: slideIn 0.3s ease-out;
+    }
+    
+    @keyframes slideIn {
+        from { transform: translateX(100%); }
+        to { transform: translateX(0); }
+    }
+`;
+document.head.appendChild(style); 
