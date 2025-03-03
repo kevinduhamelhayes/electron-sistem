@@ -15,9 +15,10 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "better-sqlite3": "^8.5.0",
     "electron-squirrel-startup": "^1.0.0",
-    "exceljs": "^4.3.0"
+    "exceljs": "^4.3.0",
+    "sqlite": "^5.1.1",
+    "sqlite3": "^5.1.6"
   },
   "devDependencies": {
     "electron": "^28.1.0",
