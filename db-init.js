@@ -1,8 +1,7 @@
 // db-init.js
 // Script para inicializar la base de datos con productos de ejemplo
 
-const sqlite3 = require('sqlite3');
-const { open } = require('sqlite');
+const initSqlJs = require('sql.js');
 const path = require('path');
 const { app } = require('electron');
 const fs = require('fs');
@@ -19,16 +18,24 @@ const dbPath = path.join(userDataPath, 'ventas.db');
 
 async function initDatabase() {
     try {
-        // Abrir la base de datos
-        const db = await open({
-            filename: dbPath,
-            driver: sqlite3.Database
-        });
-        console.log('Base de datos conectada correctamente');
+        // Cargar SQL.js
+        const SQL = await initSqlJs();
+        
+        // Verificar si el archivo de base de datos existe
+        let db;
+        if (fs.existsSync(dbPath)) {
+            const dbBuffer = fs.readFileSync(dbPath);
+            db = new SQL.Database(dbBuffer);
+            console.log('Base de datos cargada correctamente');
+        } else {
+            // Crear una nueva base de datos
+            db = new SQL.Database();
+            console.log('Nueva base de datos creada');
+        }
 
         // Crear tablas
         // Tabla de ventas
-        await db.exec(`
+        db.run(`
             CREATE TABLE IF NOT EXISTS ventas (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 producto TEXT NOT NULL,
@@ -39,7 +46,7 @@ async function initDatabase() {
         `);
 
         // Tabla de productos
-        await db.exec(`
+        db.run(`
             CREATE TABLE IF NOT EXISTS productos (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 codigo TEXT UNIQUE NOT NULL,
@@ -52,10 +59,11 @@ async function initDatabase() {
         `);
 
         // Verificar si ya existen productos
-        const productCount = await db.get("SELECT COUNT(*) as count FROM productos");
+        const result = db.exec("SELECT COUNT(*) as count FROM productos");
+        const productCount = result[0].values[0][0];
 
         // Si no hay productos, insertar algunos de ejemplo
-        if (productCount.count === 0) {
+        if (productCount === 0) {
             const productos = [
                 { codigo: '1001', nombre: 'Coca Cola 600ml', precio: 25.00, cantidad: 50, categoria: 'Bebidas', descripcion: 'Refresco de cola' },
                 { codigo: '1002', nombre: 'Sabritas Original', precio: 18.50, cantidad: 30, categoria: 'Snacks', descripcion: 'Papas fritas' },
@@ -70,22 +78,35 @@ async function initDatabase() {
             ];
 
             // Iniciar transacción
-            await db.run('BEGIN TRANSACTION');
+            db.run('BEGIN TRANSACTION');
+            
+            const stmt = db.prepare("INSERT INTO productos (codigo, nombre, precio, cantidad, categoria, descripcion) VALUES (?, ?, ?, ?, ?, ?)");
             
             for (const producto of productos) {
-                await db.run(
-                    "INSERT INTO productos (codigo, nombre, precio, cantidad, categoria, descripcion) VALUES (?, ?, ?, ?, ?, ?)",
-                    [producto.codigo, producto.nombre, producto.precio, producto.cantidad, producto.categoria, producto.descripcion]
-                );
+                stmt.run([
+                    producto.codigo,
+                    producto.nombre,
+                    producto.precio,
+                    producto.cantidad,
+                    producto.categoria,
+                    producto.descripcion
+                ]);
             }
             
+            stmt.free();
+            
             // Finalizar transacción
-            await db.run('COMMIT');
+            db.run('COMMIT');
             console.log("Productos de ejemplo insertados correctamente");
         }
 
+        // Guardar la base de datos en el archivo
+        const data = db.export();
+        const buffer = Buffer.from(data);
+        fs.writeFileSync(dbPath, buffer);
+        
         // Cerrar la conexión cuando termine
-        await db.close();
+        db.close();
         console.log("Base de datos inicializada correctamente");
     } catch (err) {
         console.error("Error al inicializar la base de datos:", err.message);

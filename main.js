@@ -1,11 +1,10 @@
 // main.js (Proceso Principal de Electron)
 const { app, BrowserWindow, ipcMain, globalShortcut, Menu } = require('electron');
 const path = require('path');
-const sqlite3 = require('sqlite3');
-const { open } = require('sqlite');
 const fs = require('fs');
 const ExcelJS = require('exceljs');
 const { currentVersion } = require('./version');
+const initSqlJs = require('sql.js');
 
 let mainWindow;
 let db;
@@ -22,15 +21,24 @@ if (!fs.existsSync(userDataPath)) {
 // Inicializar la base de datos
 async function initDatabase() {
     try {
-        db = await open({
-            filename: dbPath,
-            driver: sqlite3.Database
-        });
-        console.log('Base de datos conectada correctamente');
+        // Cargar SQL.js
+        const SQL = await initSqlJs();
+        
+        // Verificar si el archivo de base de datos existe
+        let dbBuffer;
+        if (fs.existsSync(dbPath)) {
+            dbBuffer = fs.readFileSync(dbPath);
+            db = new SQL.Database(dbBuffer);
+            console.log('Base de datos cargada correctamente');
+        } else {
+            // Crear una nueva base de datos
+            db = new SQL.Database();
+            console.log('Nueva base de datos creada');
+        }
         
         // Inicializar tablas
         // Tabla de ventas
-        await db.exec(`
+        db.run(`
             CREATE TABLE IF NOT EXISTS ventas (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 producto TEXT NOT NULL,
@@ -41,7 +49,7 @@ async function initDatabase() {
         `);
 
         // Tabla de productos
-        await db.exec(`
+        db.run(`
             CREATE TABLE IF NOT EXISTS productos (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 codigo TEXT UNIQUE NOT NULL,
@@ -54,10 +62,11 @@ async function initDatabase() {
         `);
 
         // Verificar si ya existen productos
-        const productCount = await db.get("SELECT COUNT(*) as count FROM productos");
+        const result = db.exec("SELECT COUNT(*) as count FROM productos");
+        const productCount = result[0].values[0][0];
 
         // Si no hay productos, insertar algunos de ejemplo
-        if (productCount.count === 0) {
+        if (productCount === 0) {
             const productos = [
                 { codigo: '1001', nombre: 'Coca Cola 600ml', precio: 25.00, cantidad: 50, categoria: 'Bebidas', descripcion: 'Refresco de cola' },
                 { codigo: '1002', nombre: 'Sabritas Original', precio: 18.50, cantidad: 30, categoria: 'Snacks', descripcion: 'Papas fritas' },
@@ -67,21 +76,44 @@ async function initDatabase() {
             ];
 
             // Iniciar transacción
-            await db.run('BEGIN TRANSACTION');
+            db.run('BEGIN TRANSACTION');
+            
+            const stmt = db.prepare("INSERT INTO productos (codigo, nombre, precio, cantidad, categoria, descripcion) VALUES (?, ?, ?, ?, ?, ?)");
             
             for (const producto of productos) {
-                await db.run(
-                    "INSERT INTO productos (codigo, nombre, precio, cantidad, categoria, descripcion) VALUES (?, ?, ?, ?, ?, ?)",
-                    [producto.codigo, producto.nombre, producto.precio, producto.cantidad, producto.categoria, producto.descripcion]
-                );
+                stmt.run([
+                    producto.codigo,
+                    producto.nombre,
+                    producto.precio,
+                    producto.cantidad,
+                    producto.categoria,
+                    producto.descripcion
+                ]);
             }
             
+            stmt.free();
+            
             // Finalizar transacción
-            await db.run('COMMIT');
+            db.run('COMMIT');
             console.log('Productos de ejemplo insertados correctamente');
         }
+        
+        // Guardar la base de datos en el archivo
+        const data = db.export();
+        const buffer = Buffer.from(data);
+        fs.writeFileSync(dbPath, buffer);
+        
     } catch (err) {
         console.error('Error al inicializar la base de datos:', err.message);
+    }
+}
+
+// Función para guardar la base de datos
+function saveDatabase() {
+    if (db) {
+        const data = db.export();
+        const buffer = Buffer.from(data);
+        fs.writeFileSync(dbPath, buffer);
     }
 }
 
@@ -157,9 +189,17 @@ ipcMain.on('obtener-version', (event) => {
 });
 
 // Obtener productos
-ipcMain.on('obtener-productos', async (event) => {
+ipcMain.on('obtener-productos', (event) => {
     try {
-        const productos = await db.all("SELECT * FROM productos");
+        const result = db.exec("SELECT * FROM productos");
+        const productos = result.length > 0 ? 
+            result[0].values.map((row, index) => {
+                const obj = {};
+                result[0].columns.forEach((col, colIndex) => {
+                    obj[col] = row[colIndex];
+                });
+                return obj;
+            }) : [];
         event.reply('productos-obtenidos', productos);
     } catch (err) {
         event.reply('error', err.message);
@@ -167,30 +207,42 @@ ipcMain.on('obtener-productos', async (event) => {
 });
 
 // Buscar producto por código
-ipcMain.on('buscar-producto', async (event, codigo) => {
+ipcMain.on('buscar-producto', (event, codigo) => {
     try {
-        const producto = await db.get("SELECT * FROM productos WHERE codigo = ?", codigo);
-        event.reply('producto-encontrado', producto || null);
+        const stmt = db.prepare("SELECT * FROM productos WHERE codigo = ?");
+        stmt.bind([codigo]);
+        
+        const result = stmt.step() ? stmt.getAsObject() : null;
+        stmt.free();
+        
+        event.reply('producto-encontrado', result);
     } catch (err) {
         event.reply('error', err.message);
     }
 });
 
 // Guardar venta
-ipcMain.on('guardar-venta', async (event, venta) => {
+ipcMain.on('guardar-venta', (event, venta) => {
     try {
-        const result = await db.run(
-            "INSERT INTO ventas (producto, precio, metodoPago, fecha) VALUES (?, ?, ?, ?)",
-            [venta.producto, venta.precio, venta.metodoPago, venta.fecha]
-        );
-        event.reply('venta-guardada', { id: result.lastID });
+        const stmt = db.prepare("INSERT INTO ventas (producto, precio, metodoPago, fecha) VALUES (?, ?, ?, ?)");
+        stmt.run([venta.producto, venta.precio, venta.metodoPago, venta.fecha]);
+        stmt.free();
+        
+        // Obtener el ID de la última inserción
+        const result = db.exec("SELECT last_insert_rowid() as id");
+        const id = result[0].values[0][0];
+        
+        // Guardar la base de datos
+        saveDatabase();
+        
+        event.reply('venta-guardada', { id });
     } catch (err) {
         event.reply('error', err.message);
     }
 });
 
 // Obtener ventas
-ipcMain.on('obtener-ventas', async (event, filtro) => {
+ipcMain.on('obtener-ventas', (event, filtro) => {
     try {
         let query = "SELECT * FROM ventas";
         let params = [];
@@ -219,7 +271,17 @@ ipcMain.on('obtener-ventas', async (event, filtro) => {
         
         query += " ORDER BY id DESC";
         
-        const ventas = await db.all(query, params);
+        const stmt = db.prepare(query);
+        if (params.length > 0) {
+            stmt.bind(params);
+        }
+        
+        const ventas = [];
+        while (stmt.step()) {
+            ventas.push(stmt.getAsObject());
+        }
+        stmt.free();
+        
         event.reply('ventas-obtenidas', ventas);
     } catch (err) {
         event.reply('error', err.message);
@@ -248,9 +310,10 @@ ipcMain.on('exportar-excel', async (event, ventas) => {
     event.reply('excel-exportado', filePath);
 });
 
-app.on('window-all-closed', async () => {
+app.on('window-all-closed', () => {
     if (db) {
-        await db.close();
+        saveDatabase();
+        db.close();
     }
     globalShortcut.unregisterAll();
     if (process.platform !== 'darwin') app.quit();
