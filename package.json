@@ -1,0 +1,39 @@
+{
+  "name": "electron-sistema-kiosco",
+  "version": "1.0.0",
+  "description": "Sistema de ventas para kiosco con Electron",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder",
+    "install-app": "node install.js",
+    "postinstall": "electron-builder install-app-deps",
+    "version:patch": "node -e \"require('./version').incrementVersion('patch')\"",
+    "version:minor": "node -e \"require('./version').incrementVersion('minor')\"",
+    "version:major": "node -e \"require('./version').incrementVersion('major')\""
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "better-sqlite3": "^8.5.0",
+    "electron-squirrel-startup": "^1.0.0",
+    "exceljs": "^4.3.0"
+  },
+  "devDependencies": {
+    "electron": "^28.1.0",
+    "electron-builder": "^24.9.1"
+  },
+  "build": {
+    "appId": "com.electron.sistema-kiosco",
+    "productName": "Sistema Kiosco",
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "target": "nsis"
+    },
+    "linux": {
+      "target": "AppImage"
+    }
+  }
+}
