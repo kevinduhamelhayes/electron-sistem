@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![Sistema de Kiosco](public/Captura%20desde%202025-03-04%2012-23-24.png)
+![Sistema de Kiosco](public/main-dashboard.png)
 
 Una aplicación de escritorio moderna y eficiente para gestionar ventas en kioscos, desarrollada con Electron.js.
 
@@ -25,16 +25,16 @@ Una aplicación de escritorio moderna y eficiente para gestionar ventas en kiosc
 <div align="center">
 
 ### Vista Principal de Ventas
-![Vista Principal](public/Captura%20desde%202025-03-04%2012-24-11.png)
+![Vista Principal](public/sales-view.png)
 
 ### Panel de Estadísticas
-![Estadísticas](public/Captura%20desde%202025-03-04%2012-24-33.png)
+![Estadísticas](public/statistics-panel.png)
 
 ### Gestión de Productos
-![Productos](public/Captura%20desde%202025-03-04%2012-24-59.png)
+![Productos](public/product-management.png)
 
 ### Reportes y Exportación
-![Reportes](public/Captura%20desde%202025-03-04%2012-25-21.png)
+![Reportes](public/reports-export.png)
 
 </div>
 
