@@ -1,4 +1,14 @@
 // main.js (Proceso Principal de Electron)
+/**
+ * Sistema de Kiosco con Electron
+ * Este archivo contiene la configuración del proceso principal de Electron,
+ * incluyendo la inicialización de la base de datos, creación de ventanas,
+ * configuración de menús y manejo de eventos IPC para la comunicación entre procesos.
+ * 
+ * @license MIT
+ * @version 1.0.0
+ */
+
 const { app, BrowserWindow, ipcMain, globalShortcut, Menu } = require('electron');
 const path = require('path');
 const fs = require('fs');
@@ -18,7 +28,10 @@ if (!fs.existsSync(userDataPath)) {
     fs.mkdirSync(userDataPath, { recursive: true });
 }
 
-// Inicializar la base de datos
+/**
+ * Inicializa la base de datos SQLite
+ * Crea las tablas necesarias e inserta datos de ejemplo si es necesario
+ */
 async function initDatabase() {
     try {
         // Cargar SQL.js
@@ -108,7 +121,9 @@ async function initDatabase() {
     }
 }
 
-// Función para guardar la base de datos
+/**
+ * Guarda el estado actual de la base de datos en el archivo
+ */
 function saveDatabase() {
     if (db) {
         const data = db.export();
@@ -117,7 +132,9 @@ function saveDatabase() {
     }
 }
 
-// Crear menú de la aplicación
+/**
+ * Crea el menú principal de la aplicación con todas las opciones disponibles
+ */
 function createMenu() {
     const template = [
         {
@@ -205,7 +222,11 @@ ipcMain.on('obtener-version', (event) => {
     event.reply('version', currentVersion);
 });
 
-// Obtener productos
+/**
+ * Maneja la solicitud para obtener todos los productos de la base de datos
+ * @event obtener-productos
+ * @response productos-obtenidos Array con todos los productos
+ */
 ipcMain.on('obtener-productos', (event) => {
     try {
         const result = db.exec("SELECT * FROM productos");
@@ -223,7 +244,12 @@ ipcMain.on('obtener-productos', (event) => {
     }
 });
 
-// Buscar producto por código
+/**
+ * Busca un producto específico por su código de barras
+ * @event buscar-producto
+ * @param {string} codigo - Código de barras del producto
+ * @response producto-encontrado Objeto con los datos del producto o null si no existe
+ */
 ipcMain.on('buscar-producto', (event, codigo) => {
     try {
         const stmt = db.prepare("SELECT * FROM productos WHERE codigo = ?");
@@ -238,7 +264,12 @@ ipcMain.on('buscar-producto', (event, codigo) => {
     }
 });
 
-// Guardar venta
+/**
+ * Registra una nueva venta en la base de datos
+ * @event guardar-venta
+ * @param {Object} venta - Datos de la venta (producto, precio, metodoPago, fecha)
+ * @response venta-guardada Objeto con el ID de la venta creada
+ */
 ipcMain.on('guardar-venta', (event, venta) => {
     try {
         const stmt = db.prepare("INSERT INTO ventas (producto, precio, metodoPago, fecha) VALUES (?, ?, ?, ?)");
@@ -258,7 +289,12 @@ ipcMain.on('guardar-venta', (event, venta) => {
     }
 });
 
-// Obtener ventas
+/**
+ * Obtiene las ventas filtradas por período (día, mes, año)
+ * @event obtener-ventas
+ * @param {string} filtro - Tipo de filtro ('dia', 'mes', 'anio')
+ * @response ventas-obtenidas Array con las ventas que cumplen el filtro
+ */
 ipcMain.on('obtener-ventas', (event, filtro) => {
     try {
         let query = "SELECT * FROM ventas";
@@ -305,7 +341,12 @@ ipcMain.on('obtener-ventas', (event, filtro) => {
     }
 });
 
-// Exportar a Excel
+/**
+ * Exporta las ventas a un archivo Excel en el escritorio
+ * @event exportar-excel
+ * @param {Array} ventas - Lista de ventas a exportar
+ * @response excel-exportado Ruta del archivo Excel generado
+ */
 ipcMain.on('exportar-excel', async (event, ventas) => {
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet('Ventas');
@@ -327,7 +368,12 @@ ipcMain.on('exportar-excel', async (event, ventas) => {
     event.reply('excel-exportado', filePath);
 });
 
-// Agregar nuevo producto
+/**
+ * Registra un nuevo producto en la base de datos
+ * @event agregar-producto
+ * @param {Object} producto - Datos del producto a agregar
+ * @response producto-agregado Objeto con el resultado de la operación
+ */
 ipcMain.on('agregar-producto', (event, producto) => {
     try {
         const stmt = db.prepare(`
@@ -355,7 +401,12 @@ ipcMain.on('agregar-producto', (event, producto) => {
     }
 });
 
-// Actualizar producto
+/**
+ * Actualiza los datos de un producto existente
+ * @event actualizar-producto
+ * @param {Object} producto - Datos actualizados del producto
+ * @response producto-actualizado Objeto con el resultado de la operación
+ */
 ipcMain.on('actualizar-producto', (event, producto) => {
     try {
         const stmt = db.prepare(`
@@ -384,7 +435,12 @@ ipcMain.on('actualizar-producto', (event, producto) => {
     }
 });
 
-// Eliminar producto
+/**
+ * Elimina un producto de la base de datos
+ * @event eliminar-producto
+ * @param {string} codigo - Código del producto a eliminar
+ * @response producto-eliminado Objeto con el resultado de la operación
+ */
 ipcMain.on('eliminar-producto', (event, codigo) => {
     try {
         const stmt = db.prepare('DELETE FROM productos WHERE codigo = ?');

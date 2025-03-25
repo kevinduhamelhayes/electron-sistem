@@ -1,6 +1,6 @@
 {
   "name": "electron-sistema-kiosco",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Sistema de ventas para kiosco con Electron",
   "main": "main.js",
   "scripts": {
@@ -13,7 +13,7 @@
     "version:major": "node -e \"require('./version').incrementVersion('major')\""
   },
   "author": "",
-  "license": "ISC",
+  "license": "MIT",
   "dependencies": {
     "electron-squirrel-startup": "^1.0.0",
     "exceljs": "^4.3.0",

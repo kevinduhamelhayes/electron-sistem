@@ -1,5 +1,15 @@
 # Historial de Cambios
 
+## [1.0.1] - 2025-03-04
+
+### Agregado
+- Licencia MIT al proyecto
+- Comentarios mejorados y documentación en el código
+- Actualización de la documentación en README
+
+### Cambiado
+- Migración de licencia ISC a MIT
+
 ## [1.0.0] - 2025-03-03
 
 ### Agregado

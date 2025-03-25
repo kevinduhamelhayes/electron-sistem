@@ -102,7 +102,7 @@ Esto generará los archivos de instalación en la carpeta `dist`.
 
 ## 📄 Licencia
 
-ISC
+MIT - Ver el archivo [LICENSE](LICENSE) para más detalles
 
 ---
 
